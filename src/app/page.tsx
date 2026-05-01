@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { type AppSettings, type MonthSchedule, type DayEntry, type SubmitResult } from '@/types'
 import { generateDefaultSchedule, getSubmittableEntries } from '@/lib/schedule'
 import { loadSettings, saveSettings, loadSchedule, saveSchedule } from '@/lib/storage'
@@ -145,13 +146,21 @@ export default function HomePage() {
             <h1 className="text-base font-bold text-gray-500 tracking-wide">
               Time Pro VG Commander
             </h1>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="text-gray-400 hover:text-gray-600 transition-colors text-xl"
-              title="設定"
-            >
-              ⚙️
-            </button>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/details"
+                className="text-xs text-indigo-500 hover:text-indigo-700 font-medium border border-indigo-200 px-2.5 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
+              >
+                超過勤務・出張 →
+              </Link>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="text-gray-400 hover:text-gray-600 transition-colors text-xl"
+                title="設定"
+              >
+                ⚙️
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

@@ -4,6 +4,8 @@ export type DayStatus =
   | 'paid-leave'    // 有給休暇
   | 'business-trip' // 出張
   | 'holiday'       // 祝日
+  | 'on-call'       // 当直
+  | 'post-call-off' // 明け休み
 
 export interface TimeRange {
   clockIn: string   // "HH:MM"
@@ -46,6 +48,29 @@ export interface AppSettings {
   weekdayDefaults: WeekdayDefaults
 }
 
+// ── 超過勤務 ─────────────────────────────────────────────────────
+export type OvertimeReason = '診療業務の延長' | '会議の出席' | 'その他'
+
+export interface OvertimeEntry {
+  id: string
+  date: string       // "YYYY-MM-DD"
+  startTime: string  // "HH:MM" (定時退勤後の開始)
+  endTime: string    // "HH:MM"
+  reason: OvertimeReason
+  note?: string      // 「その他」の場合の補足
+}
+
+// ── 出張 ─────────────────────────────────────────────────────────
+export interface BusinessTripEntry {
+  id: string
+  date: string
+  destination: string  // 行先
+  purpose?: string     // 目的
+  departTime?: string  // 出発時刻
+  returnTime?: string  // 帰着時刻
+}
+
+// ── 申請 ─────────────────────────────────────────────────────────
 export interface SubmitResult {
   date: string
   status: 'pending' | 'success' | 'error' | 'skipped'

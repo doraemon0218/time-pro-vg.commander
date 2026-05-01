@@ -5,11 +5,13 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { type DayEntry, type DayStatus } from '@/types'
 
 const STATUS_OPTIONS: { value: DayStatus; label: string; color: string }[] = [
-  { value: 'regular',       label: '通常出勤',   color: 'bg-blue-100 text-blue-800 border-blue-300' },
-  { value: 'paid-leave',    label: '有給休暇',   color: 'bg-green-100 text-green-800 border-green-300' },
-  { value: 'business-trip', label: '出張',       color: 'bg-amber-100 text-amber-800 border-amber-300' },
-  { value: 'non-working',   label: '非勤務日',   color: 'bg-gray-100 text-gray-600 border-gray-300' },
-  { value: 'holiday',       label: '祝日',       color: 'bg-rose-100 text-rose-800 border-rose-300' },
+  { value: 'regular',        label: '通常出勤',  color: 'bg-blue-100 text-blue-800 border-blue-300' },
+  { value: 'on-call',        label: '当直',      color: 'bg-violet-100 text-violet-800 border-violet-300' },
+  { value: 'post-call-off',  label: '明け休み',  color: 'bg-pink-100 text-pink-700 border-pink-300' },
+  { value: 'paid-leave',     label: '有給休暇',  color: 'bg-green-100 text-green-800 border-green-300' },
+  { value: 'business-trip',  label: '出張',      color: 'bg-amber-100 text-amber-800 border-amber-300' },
+  { value: 'non-working',    label: '非勤務日',  color: 'bg-gray-100 text-gray-600 border-gray-300' },
+  { value: 'holiday',        label: '祝日',      color: 'bg-rose-100 text-rose-800 border-rose-300' },
 ]
 
 interface Props {
@@ -48,7 +50,7 @@ export function DayEditDialog({ entry, open, onClose, onSave }: Props) {
     onClose()
   }
 
-  const needsTimes = status === 'regular' || status === 'business-trip'
+  const needsTimes = status === 'regular' || status === 'business-trip' || status === 'on-call'
 
   return (
     <Dialog.Root open={open} onOpenChange={v => !v && onClose()}>

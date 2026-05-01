@@ -4,11 +4,13 @@ import { type DayEntry, type DayStatus } from '@/types'
 import { getDaysInMonth, formatDate, WEEKDAY_NAMES } from '@/lib/utils'
 
 const STATUS_STYLE: Record<DayStatus, { cell: string; badge: string; label: string }> = {
-  regular:        { cell: 'bg-blue-50 border-blue-200 hover:bg-blue-100',   badge: 'bg-blue-500',   label: '出勤' },
-  'paid-leave':   { cell: 'bg-green-50 border-green-200 hover:bg-green-100', badge: 'bg-green-500',  label: '有給' },
-  'business-trip':{ cell: 'bg-amber-50 border-amber-200 hover:bg-amber-100', badge: 'bg-amber-500',  label: '出張' },
-  'non-working':  { cell: 'bg-gray-50 border-gray-200 hover:bg-gray-100',    badge: 'bg-gray-300',   label: '非勤務' },
-  holiday:        { cell: 'bg-rose-50 border-rose-200 hover:bg-rose-100',    badge: 'bg-rose-500',   label: '祝日' },
+  regular:          { cell: 'bg-blue-50 border-blue-200 hover:bg-blue-100',     badge: 'bg-blue-500',    label: '出勤' },
+  'paid-leave':     { cell: 'bg-green-50 border-green-200 hover:bg-green-100',   badge: 'bg-green-500',   label: '有給' },
+  'business-trip':  { cell: 'bg-amber-50 border-amber-200 hover:bg-amber-100',   badge: 'bg-amber-500',   label: '出張' },
+  'non-working':    { cell: 'bg-gray-50 border-gray-200 hover:bg-gray-100',      badge: 'bg-gray-300',    label: '非勤務' },
+  holiday:          { cell: 'bg-rose-50 border-rose-200 hover:bg-rose-100',      badge: 'bg-rose-500',    label: '祝日' },
+  'on-call':        { cell: 'bg-violet-50 border-violet-200 hover:bg-violet-100', badge: 'bg-violet-500',  label: '当直' },
+  'post-call-off':  { cell: 'bg-pink-50 border-pink-200 hover:bg-pink-100',      badge: 'bg-pink-400',    label: '明け休み' },
 }
 
 interface Props {

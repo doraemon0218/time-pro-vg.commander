@@ -4,11 +4,13 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { type DayEntry, type SubmitResult } from '@/types'
 
 const STATUS_LABEL: Record<DayEntry['status'], string> = {
-  regular:        '出勤',
-  'paid-leave':   '有給',
-  'business-trip':'出張',
-  'non-working':  '非勤務',
-  holiday:        '祝日',
+  regular:          '出勤',
+  'paid-leave':     '有給',
+  'business-trip':  '出張',
+  'non-working':    '非勤務',
+  holiday:          '祝日',
+  'on-call':        '当直',
+  'post-call-off':  '明け休み',
 }
 
 interface Props {
