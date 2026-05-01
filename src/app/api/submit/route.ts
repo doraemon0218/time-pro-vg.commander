@@ -1,7 +1,26 @@
 import { NextRequest } from 'next/server'
 import { type DayEntry, type AppSettings } from '@/types'
 
+// Vercel serverless 環境では Playwright は動作しない
+// このAPIはローカル環境（npm run dev）でのみ機能します
+const IS_VERCEL = process.env.VERCEL === '1'
+
+export const maxDuration = 300
+
 export async function POST(request: NextRequest) {
+  if (IS_VERCEL) {
+    return Response.json(
+      {
+        error:
+          'Vercel環境では自動申請は実行できません。\n' +
+          'ローカルPC（院内ネットワーク）で npm run dev を起動し、\n' +
+          'そちらから申請してください。',
+        isVercelEnvironment: true,
+      },
+      { status: 501 },
+    )
+  }
+
   try {
     const { entries, settings }: { entries: DayEntry[]; settings: AppSettings } =
       await request.json()

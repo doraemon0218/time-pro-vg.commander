@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { type AppSettings, type MonthSchedule, type DayEntry, type SubmitResult } from '@/types'
 import { generateDefaultSchedule, getSubmittableEntries } from '@/lib/schedule'
+import { loadSettings, saveSettings, loadSchedule, saveSchedule } from '@/lib/storage'
 import { Calendar } from '@/components/Calendar'
 import { DayEditDialog } from '@/components/DayEditDialog'
 import { SettingsPanel } from '@/components/SettingsPanel'
@@ -44,45 +45,20 @@ export default function HomePage() {
 
   // ─── 初期データ読み込み ───
   useEffect(() => {
-    async function load() {
-      setLoading(true)
-      try {
-        const settingsRes = await fetch('/api/settings')
-        if (settingsRes.ok) {
-          const s = await settingsRes.json()
-          setSettings(s)
-        }
-      } catch { /* ignore */ }
-      setLoading(false)
-    }
-    load()
+    const saved = loadSettings()
+    if (saved) setSettings(saved)
+    setLoading(false)
   }, [])
 
   // ─── 月変更時にスケジュール読み込み ───
-  const loadSchedule = useCallback(async (y: number, m: number, s: AppSettings) => {
-    const res = await fetch(`/api/schedule?year=${y}&month=${m}`)
-    if (res.ok) {
-      const saved = await res.json()
-      if (saved) {
-        setSchedule(saved)
-        return
-      }
-    }
-    setSchedule(generateDefaultSchedule(y, m, s))
+  const loadMonthSchedule = useCallback((y: number, m: number, s: AppSettings) => {
+    const saved = loadSchedule(y, m)
+    setSchedule(saved ?? generateDefaultSchedule(y, m, s))
   }, [])
 
   useEffect(() => {
-    if (!loading) loadSchedule(year, month, settings)
-  }, [year, month, loading, settings, loadSchedule])
-
-  // ─── スケジュール保存 ───
-  async function saveSchedule(s: MonthSchedule) {
-    await fetch('/api/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(s),
-    })
-  }
+    if (!loading) loadMonthSchedule(year, month, settings)
+  }, [year, month, loading, settings, loadMonthSchedule])
 
   // ─── 日付セルクリック ───
   function handleDayClick(dateStr: string) {
@@ -90,14 +66,14 @@ export default function HomePage() {
   }
 
   // ─── 日付編集保存 ───
-  async function handleDaySave(entry: DayEntry) {
+  function handleDaySave(entry: DayEntry) {
     if (!schedule) return
     const next: MonthSchedule = {
       ...schedule,
       entries: { ...schedule.entries, [entry.date]: entry },
     }
     setSchedule(next)
-    await saveSchedule(next)
+    saveSchedule(next)
   }
 
   // ─── 月ナビゲーション ───
@@ -111,13 +87,10 @@ export default function HomePage() {
   }
 
   // ─── 設定保存 ───
-  async function handleSettingsSave(s: AppSettings) {
+  function handleSettingsSave(s: AppSettings) {
     setSettings(s)
-    await fetch('/api/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(s),
-    })
+    saveSettings(s)
+    return Promise.resolve()
   }
 
   // ─── 修正申請実行 ───
@@ -137,8 +110,13 @@ export default function HomePage() {
         body: JSON.stringify({ entries, settings }),
       })
       const data = await res.json()
-      setSubmitResults(data.results ?? [])
-      setSubmitLogs(data.logs ?? [])
+      if (data.isVercelEnvironment) {
+        setSubmitLogs([data.error])
+        setSubmitResults([])
+      } else {
+        setSubmitResults(data.results ?? [])
+        setSubmitLogs(data.logs ?? [])
+      }
     } catch (err) {
       setSubmitLogs([`エラー: ${String(err)}`])
       setSubmitResults([])
