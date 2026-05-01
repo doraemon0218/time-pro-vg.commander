@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# user data (パスワード等を含む可能性があるため除外)
+/data/settings.json
+/data/schedules/

@@ -1,65 +1,259 @@
-import Image from "next/image";
+'use client'
 
-export default function Home() {
+import { useState, useEffect, useCallback } from 'react'
+import { type AppSettings, type MonthSchedule, type DayEntry, type SubmitResult } from '@/types'
+import { generateDefaultSchedule, getSubmittableEntries } from '@/lib/schedule'
+import { Calendar } from '@/components/Calendar'
+import { DayEditDialog } from '@/components/DayEditDialog'
+import { SettingsPanel } from '@/components/SettingsPanel'
+import { SubmitDialog } from '@/components/SubmitDialog'
+
+const DEFAULT_SETTINGS: AppSettings = {
+  timeproUrl: 'https://your-company.tpvg.jp',
+  username: '',
+  password: '',
+  correctionReason: '打刻漏れのため修正申請いたします',
+  headless: true,
+  weekdayDefaults: [
+    { isWorking: false, clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: false, clockIn: '07:30', clockOut: '16:30' },
+  ],
+}
+
+export default function HomePage() {
+  const today = new Date()
+  const [year, setYear] = useState(today.getFullYear())
+  const [month, setMonth] = useState(today.getMonth() + 1)
+
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
+  const [schedule, setSchedule] = useState<MonthSchedule | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showSubmit, setShowSubmit] = useState(false)
+
+  const [submitting, setSubmitting] = useState(false)
+  const [submitResults, setSubmitResults] = useState<SubmitResult[] | null>(null)
+  const [submitLogs, setSubmitLogs] = useState<string[]>([])
+
+  // ─── 初期データ読み込み ───
+  useEffect(() => {
+    async function load() {
+      setLoading(true)
+      try {
+        const settingsRes = await fetch('/api/settings')
+        if (settingsRes.ok) {
+          const s = await settingsRes.json()
+          setSettings(s)
+        }
+      } catch { /* ignore */ }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  // ─── 月変更時にスケジュール読み込み ───
+  const loadSchedule = useCallback(async (y: number, m: number, s: AppSettings) => {
+    const res = await fetch(`/api/schedule?year=${y}&month=${m}`)
+    if (res.ok) {
+      const saved = await res.json()
+      if (saved) {
+        setSchedule(saved)
+        return
+      }
+    }
+    setSchedule(generateDefaultSchedule(y, m, s))
+  }, [])
+
+  useEffect(() => {
+    if (!loading) loadSchedule(year, month, settings)
+  }, [year, month, loading, settings, loadSchedule])
+
+  // ─── スケジュール保存 ───
+  async function saveSchedule(s: MonthSchedule) {
+    await fetch('/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(s),
+    })
+  }
+
+  // ─── 日付セルクリック ───
+  function handleDayClick(dateStr: string) {
+    setSelectedDate(dateStr)
+  }
+
+  // ─── 日付編集保存 ───
+  async function handleDaySave(entry: DayEntry) {
+    if (!schedule) return
+    const next: MonthSchedule = {
+      ...schedule,
+      entries: { ...schedule.entries, [entry.date]: entry },
+    }
+    setSchedule(next)
+    await saveSchedule(next)
+  }
+
+  // ─── 月ナビゲーション ───
+  function prevMonth() {
+    if (month === 1) { setYear(y => y - 1); setMonth(12) }
+    else setMonth(m => m - 1)
+  }
+  function nextMonth() {
+    if (month === 12) { setYear(y => y + 1); setMonth(1) }
+    else setMonth(m => m + 1)
+  }
+
+  // ─── 設定保存 ───
+  async function handleSettingsSave(s: AppSettings) {
+    setSettings(s)
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(s),
+    })
+  }
+
+  // ─── 修正申請実行 ───
+  async function handleSubmit() {
+    if (!schedule) return
+    const entries = getSubmittableEntries(schedule)
+    if (entries.length === 0) return
+
+    setSubmitting(true)
+    setSubmitResults(null)
+    setSubmitLogs([])
+
+    try {
+      const res = await fetch('/api/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entries, settings }),
+      })
+      const data = await res.json()
+      setSubmitResults(data.results ?? [])
+      setSubmitLogs(data.logs ?? [])
+    } catch (err) {
+      setSubmitLogs([`エラー: ${String(err)}`])
+      setSubmitResults([])
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const submittableCount = schedule ? getSubmittableEntries(schedule).length : 0
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="max-w-2xl mx-auto px-4 py-6">
+
+        {/* ─── ヘッダー ─── */}
+        <header className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-base font-bold text-gray-500 tracking-wide">
+              Time Pro VG Commander
+            </h1>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="text-gray-400 hover:text-gray-600 transition-colors text-xl"
+              title="設定"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              ⚙️
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={prevMonth}
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm text-xl font-light"
             >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+              ‹
+            </button>
+
+            <h2 className="flex-1 text-center text-2xl font-bold text-gray-800">
+              {year}年{month}月
+            </h2>
+
+            <button
+              onClick={nextMonth}
+              className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm text-xl font-light"
+            >
+              ›
+            </button>
+
+            <button
+              onClick={() => { setSubmitResults(null); setShowSubmit(true) }}
+              disabled={submittableCount === 0}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold shadow hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              🚀 修正申請
+              {submittableCount > 0 && (
+                <span className="bg-white text-indigo-600 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+                  {submittableCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </header>
+
+        {/* ─── カレンダー ─── */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          {schedule ? (
+            <Calendar
+              year={year}
+              month={month}
+              entries={schedule.entries}
+              onDayClick={handleDayClick}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-400">
+              読み込み中...
+            </div>
+          )}
         </div>
-      </main>
+
+        <p className="text-center text-xs text-gray-400 mt-3">
+          日付をタップして編集 • ⚙️で曜日別デフォルト時刻を設定
+        </p>
+      </div>
+
+      <DayEditDialog
+        entry={selectedDate && schedule ? (schedule.entries[selectedDate] ?? null) : null}
+        open={selectedDate !== null}
+        onClose={() => setSelectedDate(null)}
+        onSave={handleDaySave}
+      />
+
+      <SettingsPanel
+        settings={settings}
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        onSave={handleSettingsSave}
+      />
+
+      <SubmitDialog
+        open={showSubmit}
+        entries={schedule ? getSubmittableEntries(schedule) : []}
+        submitting={submitting}
+        results={submitResults}
+        logs={submitLogs}
+        onClose={() => { if (!submitting) setShowSubmit(false) }}
+        onConfirm={handleSubmit}
+      />
     </div>
-  );
+  )
 }
