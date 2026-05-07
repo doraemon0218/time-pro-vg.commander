@@ -76,6 +76,7 @@ export function SubmitDialog({
   const isDone = results !== null && !submitting
   const successCount = results?.filter(r => r.status === 'success').length ?? 0
   const errorCount   = results?.filter(r => r.status === 'error').length ?? 0
+  const isVercelError = isDone && logs.some(l => l.includes('Vercel環境では'))
 
   const issues = validateEntries(entries)
   const hasIssues = issues.length > 0
@@ -283,8 +284,33 @@ export function SubmitDialog({
             </div>
           )}
 
-          {/* ── 完了 ── */}
-          {isDone && results && (
+          {/* ── 完了（Vercel環境エラー） ── */}
+          {isDone && isVercelError && (
+            <div className="flex-1 overflow-y-auto">
+              <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-4">
+                <p className="text-sm font-bold text-amber-800 mb-1">申請の実行には院内PCでのローカル起動が必要です</p>
+                <p className="text-xs text-amber-700 mb-3">
+                  Vercel版からはTime Pro VGへの自動送信ができません。<br />
+                  院内ネットワーク接続PCでアプリをローカル起動し、同じ内容で申請してください。
+                </p>
+                <div className="bg-white border border-amber-200 rounded-xl p-3 font-mono text-xs text-gray-700 space-y-0.5">
+                  <div className="text-gray-400"># ターミナルで実行</div>
+                  <div>git clone https://github.com/doraemon0218/time-pro-vg.commander.git</div>
+                  <div>cd time-pro-vg.commander</div>
+                  <div>npm install</div>
+                  <div>npx playwright install chromium</div>
+                  <div>npm run dev</div>
+                  <div className="text-gray-400 mt-1"># → localhost:3000 を開いて申請</div>
+                </div>
+              </div>
+              <button onClick={onClose} className="w-full px-4 py-2 rounded-xl bg-gray-800 text-white text-sm font-semibold hover:bg-gray-900">
+                閉じる
+              </button>
+            </div>
+          )}
+
+          {/* ── 完了（通常） ── */}
+          {isDone && results && !isVercelError && (
             <>
               <div className="flex gap-4 mb-4">
                 <div className="flex-1 bg-green-50 border border-green-200 rounded-xl p-3 text-center">

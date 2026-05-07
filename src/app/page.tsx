@@ -72,6 +72,13 @@ export default function HomePage() {
   const [submitResults, setSubmitResults] = useState<SubmitResult[] | null>(null)
   const [submitLogs, setSubmitLogs] = useState<string[]>([])
 
+  // localhost か否か（Vercel本番では申請実行不可）
+  const [isLocal, setIsLocal] = useState(true)
+  useEffect(() => {
+    const h = window.location.hostname
+    setIsLocal(h === 'localhost' || h === '127.0.0.1')
+  }, [])
+
   // ─── 初期設定読み込み ───
   useEffect(() => {
     const saved = loadSettings()
@@ -311,9 +318,30 @@ export default function HomePage() {
           )}
         </div>
 
-        <p className="text-center text-xs text-gray-400 mb-6">
+        <p className="text-center text-xs text-gray-400 mb-4">
           日付をタップして編集 • ⏰ = 超過勤務あり
         </p>
+
+        {/* ─── ローカル実行が必要なことを示すバナー ─── */}
+        {!isLocal && (
+          <div className="mb-4 bg-amber-50 border border-amber-300 rounded-2xl p-4">
+            <p className="text-sm font-bold text-amber-800 mb-1">
+              申請の実行には院内PCでのローカル起動が必要です
+            </p>
+            <p className="text-xs text-amber-700 mb-3">
+              このVercel版はスケジュール確認・設定用です。Time Pro VGへの自動申請は、院内ネットワークに接続したPCでアプリをローカル起動して実行してください。
+            </p>
+            <div className="bg-white border border-amber-200 rounded-xl p-3 font-mono text-xs text-gray-700 space-y-0.5">
+              <div className="text-gray-400"># 院内PCのターミナルで実行</div>
+              <div>git clone https://github.com/doraemon0218/time-pro-vg.commander.git</div>
+              <div>cd time-pro-vg.commander</div>
+              <div>npm install</div>
+              <div>npx playwright install chromium</div>
+              <div>npm run dev</div>
+              <div className="text-gray-400 mt-1"># → ブラウザで localhost:3000 を開く</div>
+            </div>
+          </div>
+        )}
 
         {/* ─── 修正申請ボタン（大） ─── */}
         <button
@@ -324,13 +352,18 @@ export default function HomePage() {
                      disabled:opacity-40 disabled:cursor-not-allowed
                      transition-all text-xl tracking-wide"
         >
-          これで修正申請する！
+          {isLocal ? 'これで修正申請する！' : '申請内容を確認する'}
           {submittableCount > 0 && (
             <span className="ml-2 text-sm font-normal opacity-80">
               （{submittableCount}日分）
             </span>
           )}
         </button>
+        {!isLocal && submittableCount > 0 && (
+          <p className="text-center text-xs text-amber-600 mt-2">
+            ※ 実際の送信は院内PCのローカル版から行ってください
+          </p>
+        )}
       </div>
 
       <DayEditDialog
