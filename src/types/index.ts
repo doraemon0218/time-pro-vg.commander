@@ -16,6 +16,7 @@ export interface DayEntry extends TimeRange {
   date: string      // "YYYY-MM-DD"
   status: DayStatus
   note?: string
+  hasOvertime?: boolean  // 詳細画面で登録された超過勤務がある
 }
 
 export interface WeekdayDefault extends TimeRange {
@@ -68,6 +69,13 @@ export interface BusinessTripEntry {
   purpose?: string     // 目的
   departTime?: string  // 出発時刻
   returnTime?: string  // 帰着時刻
+}
+
+// ── 有給休暇 ──────────────────────────────────────────────────────
+export interface PaidLeaveEntry {
+  id: string
+  date: string   // "YYYY-MM-DD"
+  note?: string  // 任意メモ
 }
 
 // ── 申請 ─────────────────────────────────────────────────────────

@@ -86,10 +86,13 @@ export function Calendar({ year, month, entries, onDayClick }: Props) {
                   <div className="flex items-center gap-1 mb-0.5">
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${style.badge}`} />
                     <span className="text-[10px] text-gray-500 truncate">{style.label}</span>
+                    {entry.hasOvertime && (
+                      <span className="text-[9px] ml-auto">⏰</span>
+                    )}
                   </div>
 
-                  {/* 時刻表示 (出勤・出張のみ) */}
-                  {(entry.status === 'regular' || entry.status === 'business-trip') && (
+                  {/* 時刻表示 */}
+                  {(entry.status === 'regular' || entry.status === 'business-trip' || entry.status === 'on-call') && (
                     <div className="text-[9px] text-gray-500 leading-tight">
                       <div>{entry.clockIn}</div>
                       <div>{entry.clockOut}</div>

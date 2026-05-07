@@ -3,13 +3,15 @@ import {
   type MonthSchedule,
   type OvertimeEntry,
   type BusinessTripEntry,
+  type PaidLeaveEntry,
 } from '@/types'
 
 // ── キー ─────────────────────────────────────────────────────────
-const SETTINGS_KEY = 'tpvg_settings'
+const SETTINGS_KEY  = 'tpvg_settings'
 const scheduleKey   = (y: number, m: number) => `tpvg_schedule_${y}_${m}`
 const overtimeKey   = (y: number, m: number) => `tpvg_overtime_${y}_${m}`
 const bizTripKey    = (y: number, m: number) => `tpvg_biztrip_${y}_${m}`
+const paidLeaveKey  = (y: number, m: number) => `tpvg_paidleave_${y}_${m}`
 
 function get<T>(key: string): T | null {
   if (typeof window === 'undefined') return null
@@ -57,4 +59,16 @@ export function saveBusinessTripEntries(
   entries: BusinessTripEntry[],
 ): void {
   set(bizTripKey(year, month), entries)
+}
+
+// ── 有給休暇 ─────────────────────────────────────────────────────
+export function loadPaidLeaveEntries(year: number, month: number): PaidLeaveEntry[] {
+  return get<PaidLeaveEntry[]>(paidLeaveKey(year, month)) ?? []
+}
+export function savePaidLeaveEntries(
+  year: number,
+  month: number,
+  entries: PaidLeaveEntry[],
+): void {
+  set(paidLeaveKey(year, month), entries)
 }

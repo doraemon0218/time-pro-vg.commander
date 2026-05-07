@@ -37,9 +37,9 @@ export function generateDefaultSchedule(
   return { year, month, entries }
 }
 
-// 修正申請が必要な日（regular, paid-leave, business-trip）を返す
+// 修正申請が必要な日（出勤・当直のみ。有給・出張は時刻申請不要）
 export function getSubmittableEntries(schedule: MonthSchedule): DayEntry[] {
   return Object.values(schedule.entries)
-    .filter(e => e.status === 'regular' || e.status === 'paid-leave' || e.status === 'business-trip')
+    .filter(e => e.status === 'regular' || e.status === 'on-call')
     .sort((a, b) => a.date.localeCompare(b.date))
 }

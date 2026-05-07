@@ -67,7 +67,7 @@ export function SettingsPanel({ settings, open, onClose, onSave }: Props) {
                 />
               </label>
               <label className="block">
-                <span className="text-sm text-gray-600 mb-1 block">ユーザー名 / 社員番号</span>
+                <span className="text-sm text-gray-600 mb-1 block">職員番号</span>
                 <input
                   type="text"
                   value={draft.username}

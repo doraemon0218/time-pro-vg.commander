@@ -2,16 +2,30 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { type AppSettings, type MonthSchedule, type DayEntry, type SubmitResult } from '@/types'
+import {
+  type AppSettings,
+  type MonthSchedule,
+  type DayEntry,
+  type SubmitResult,
+  type OvertimeEntry,
+  type BusinessTripEntry,
+  type PaidLeaveEntry,
+} from '@/types'
 import { generateDefaultSchedule, getSubmittableEntries } from '@/lib/schedule'
-import { loadSettings, saveSettings, loadSchedule, saveSchedule } from '@/lib/storage'
+import {
+  loadSettings, saveSettings,
+  loadSchedule, saveSchedule,
+  loadOvertimeEntries, saveOvertimeEntries,
+  loadBusinessTripEntries, saveBusinessTripEntries,
+  loadPaidLeaveEntries, savePaidLeaveEntries,
+} from '@/lib/storage'
 import { Calendar } from '@/components/Calendar'
 import { DayEditDialog } from '@/components/DayEditDialog'
 import { SettingsPanel } from '@/components/SettingsPanel'
 import { SubmitDialog } from '@/components/SubmitDialog'
 
 const DEFAULT_SETTINGS: AppSettings = {
-  timeproUrl: 'https://your-company.tpvg.jp',
+  timeproUrl: 'https://rg0010306715vg.creo-hosting.com/TimePro-VG/page/OVg00010L.aspx',
   username: '',
   password: '',
   correctionReason: '打刻漏れのため修正申請いたします',
@@ -32,9 +46,23 @@ export default function HomePage() {
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth() + 1)
 
+  // details ページと月を共有：mount 時に localStorage から読み込む
+  useEffect(() => {
+    const saved = localStorage.getItem('tpvg_current_ym')
+    if (saved) {
+      const [y, m] = saved.split('-').map(Number)
+      if (y && m) { setYear(y); setMonth(m) }
+    }
+  }, [])
+
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
   const [schedule, setSchedule] = useState<MonthSchedule | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // 詳細画面で登録された超過勤務・出張・有給
+  const [overtimeEntries, setOvertimeEntries] = useState<OvertimeEntry[]>([])
+  const [bizEntries, setBizEntries] = useState<BusinessTripEntry[]>([])
+  const [paidLeaveEntries, setPaidLeaveEntries] = useState<PaidLeaveEntry[]>([])
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -44,27 +72,43 @@ export default function HomePage() {
   const [submitResults, setSubmitResults] = useState<SubmitResult[] | null>(null)
   const [submitLogs, setSubmitLogs] = useState<string[]>([])
 
-  // ─── 初期データ読み込み ───
+  // ─── 初期設定読み込み ───
   useEffect(() => {
     const saved = loadSettings()
     if (saved) setSettings(saved)
     setLoading(false)
   }, [])
 
-  // ─── 月変更時にスケジュール読み込み ───
+  // ─── 月変更時にスケジュール・詳細データ読み込み ───
   const loadMonthSchedule = useCallback((y: number, m: number, s: AppSettings) => {
     const saved = loadSchedule(y, m)
     setSchedule(saved ?? generateDefaultSchedule(y, m, s))
   }, [])
 
-  useEffect(() => {
-    if (!loading) loadMonthSchedule(year, month, settings)
-  }, [year, month, loading, settings, loadMonthSchedule])
+  const loadDetailEntries = useCallback((y: number, m: number) => {
+    setOvertimeEntries(loadOvertimeEntries(y, m))
+    setBizEntries(loadBusinessTripEntries(y, m))
+    setPaidLeaveEntries(loadPaidLeaveEntries(y, m))
+  }, [])
 
-  // ─── 日付セルクリック ───
-  function handleDayClick(dateStr: string) {
-    setSelectedDate(dateStr)
-  }
+  useEffect(() => {
+    if (!loading) {
+      loadMonthSchedule(year, month, settings)
+      loadDetailEntries(year, month)
+    }
+  }, [year, month, loading, settings, loadMonthSchedule, loadDetailEntries])
+
+  // /details から戻ってきた際にデータを再読み込み
+  useEffect(() => {
+    function onVisible() {
+      if (!document.hidden) {
+        loadMonthSchedule(year, month, settings)
+        loadDetailEntries(year, month)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [year, month, settings, loadMonthSchedule, loadDetailEntries])
 
   // ─── 日付編集保存 ───
   function handleDaySave(entry: DayEntry) {
@@ -77,14 +121,79 @@ export default function HomePage() {
     saveSchedule(next)
   }
 
+  // ─── カレンダーから超過勤務を削除 ───
+  function handleDeleteOvertimeForDate(date: string) {
+    const next = overtimeEntries.filter(e => e.date !== date)
+    setOvertimeEntries(next)
+    saveOvertimeEntries(year, month, next)
+    // カレンダーの hasOvertime フラグを解除
+    if (schedule?.entries[date]) {
+      const nextSchedule: MonthSchedule = {
+        ...schedule,
+        entries: {
+          ...schedule.entries,
+          [date]: { ...schedule.entries[date], hasOvertime: false },
+        },
+      }
+      setSchedule(nextSchedule)
+      saveSchedule(nextSchedule)
+    }
+  }
+
+  // ─── カレンダーから出張を削除 ───
+  function handleDeleteBizTripForDate(date: string) {
+    const next = bizEntries.filter(e => e.date !== date)
+    setBizEntries(next)
+    saveBusinessTripEntries(year, month, next)
+    // カレンダーの日付ステータスを週デフォルトに戻す
+    if (schedule?.entries[date]) {
+      const d = new Date(date + 'T00:00:00')
+      const weekday = d.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6
+      const def = settings.weekdayDefaults[weekday]
+      const revertStatus = def.isWorking ? 'regular' : 'non-working'
+      const nextSchedule: MonthSchedule = {
+        ...schedule,
+        entries: {
+          ...schedule.entries,
+          [date]: { ...schedule.entries[date], status: revertStatus },
+        },
+      }
+      setSchedule(nextSchedule)
+      saveSchedule(nextSchedule)
+    }
+  }
+
+  // ─── カレンダーから有給を削除 ───
+  function handleDeletePaidLeaveForDate(date: string) {
+    const next = paidLeaveEntries.filter(e => e.date !== date)
+    setPaidLeaveEntries(next)
+    savePaidLeaveEntries(year, month, next)
+    if (schedule?.entries[date]) {
+      const d = new Date(date + 'T00:00:00')
+      const weekday = d.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6
+      const def = settings.weekdayDefaults[weekday]
+      const revertStatus = def.isWorking ? 'regular' : 'non-working'
+      const nextSchedule: MonthSchedule = {
+        ...schedule,
+        entries: { ...schedule.entries, [date]: { ...schedule.entries[date], status: revertStatus } },
+      }
+      setSchedule(nextSchedule)
+      saveSchedule(nextSchedule)
+    }
+  }
+
   // ─── 月ナビゲーション ───
   function prevMonth() {
-    if (month === 1) { setYear(y => y - 1); setMonth(12) }
-    else setMonth(m => m - 1)
+    const newY = month === 1 ? year - 1 : year
+    const newM = month === 1 ? 12 : month - 1
+    setYear(newY); setMonth(newM)
+    localStorage.setItem('tpvg_current_ym', `${newY}-${newM}`)
   }
   function nextMonth() {
-    if (month === 12) { setYear(y => y + 1); setMonth(1) }
-    else setMonth(m => m + 1)
+    const newY = month === 12 ? year + 1 : year
+    const newM = month === 12 ? 1 : month + 1
+    setYear(newY); setMonth(newM)
+    localStorage.setItem('tpvg_current_ym', `${newY}-${newM}`)
   }
 
   // ─── 設定保存 ───
@@ -128,6 +237,11 @@ export default function HomePage() {
 
   const submittableCount = schedule ? getSubmittableEntries(schedule).length : 0
 
+  // 選択中の日付に関連する詳細エントリ
+  const selectedOtCount   = selectedDate ? overtimeEntries.filter(e => e.date === selectedDate).length : 0
+  const selectedBizCount  = selectedDate ? bizEntries.filter(e => e.date === selectedDate).length : 0
+  const selectedPLCount   = selectedDate ? paidLeaveEntries.filter(e => e.date === selectedDate).length : 0
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -151,14 +265,13 @@ export default function HomePage() {
                 href="/details"
                 className="text-xs text-indigo-500 hover:text-indigo-700 font-medium border border-indigo-200 px-2.5 py-1 rounded-lg hover:bg-indigo-50 transition-colors"
               >
-                超過勤務・出張 →
+                超過勤務・出張・有給 →
               </Link>
               <button
                 onClick={() => setShowSettings(true)}
-                className="text-gray-400 hover:text-gray-600 transition-colors text-xl"
-                title="設定"
+                className="text-xs text-gray-500 hover:text-gray-700 font-medium border border-gray-200 px-2.5 py-1 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                ⚙️
+                勤務設定
               </button>
             </div>
           </div>
@@ -170,41 +283,26 @@ export default function HomePage() {
             >
               ‹
             </button>
-
             <h2 className="flex-1 text-center text-2xl font-bold text-gray-800">
               {year}年{month}月
             </h2>
-
             <button
               onClick={nextMonth}
               className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 shadow-sm text-xl font-light"
             >
               ›
             </button>
-
-            <button
-              onClick={() => { setSubmitResults(null); setShowSubmit(true) }}
-              disabled={submittableCount === 0}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold shadow hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              🚀 修正申請
-              {submittableCount > 0 && (
-                <span className="bg-white text-indigo-600 rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
-                  {submittableCount}
-                </span>
-              )}
-            </button>
           </div>
         </header>
 
         {/* ─── カレンダー ─── */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-4">
           {schedule ? (
             <Calendar
               year={year}
               month={month}
               entries={schedule.entries}
-              onDayClick={handleDayClick}
+              onDayClick={d => setSelectedDate(d)}
             />
           ) : (
             <div className="h-64 flex items-center justify-center text-gray-400">
@@ -213,9 +311,26 @@ export default function HomePage() {
           )}
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-3">
-          日付をタップして編集 • ⚙️で曜日別デフォルト時刻を設定
+        <p className="text-center text-xs text-gray-400 mb-6">
+          日付をタップして編集 • ⏰ = 超過勤務あり
         </p>
+
+        {/* ─── 修正申請ボタン（大） ─── */}
+        <button
+          onClick={() => { setSubmitResults(null); setShowSubmit(true) }}
+          disabled={submittableCount === 0}
+          className="w-full py-5 rounded-2xl bg-indigo-600 text-white font-bold shadow-lg
+                     hover:bg-indigo-700 active:bg-indigo-800
+                     disabled:opacity-40 disabled:cursor-not-allowed
+                     transition-all text-xl tracking-wide"
+        >
+          これで修正申請する！
+          {submittableCount > 0 && (
+            <span className="ml-2 text-sm font-normal opacity-80">
+              （{submittableCount}日分）
+            </span>
+          )}
+        </button>
       </div>
 
       <DayEditDialog
@@ -223,6 +338,12 @@ export default function HomePage() {
         open={selectedDate !== null}
         onClose={() => setSelectedDate(null)}
         onSave={handleDaySave}
+        hasOvertimeEntry={selectedOtCount > 0}
+        hasBizTripEntry={selectedBizCount > 0}
+        hasPaidLeaveEntry={selectedPLCount > 0}
+        onDeleteOvertime={handleDeleteOvertimeForDate}
+        onDeleteBizTrip={handleDeleteBizTripForDate}
+        onDeletePaidLeave={handleDeletePaidLeaveForDate}
       />
 
       <SettingsPanel
@@ -235,6 +356,9 @@ export default function HomePage() {
       <SubmitDialog
         open={showSubmit}
         entries={schedule ? getSubmittableEntries(schedule) : []}
+        overtimeEntries={overtimeEntries}
+        bizEntries={bizEntries}
+        paidLeaveEntries={paidLeaveEntries}
         submitting={submitting}
         results={submitResults}
         logs={submitLogs}

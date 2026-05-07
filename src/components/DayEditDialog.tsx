@@ -19,9 +19,26 @@ interface Props {
   open: boolean
   onClose: () => void
   onSave: (entry: DayEntry) => void
+  hasOvertimeEntry?: boolean
+  hasBizTripEntry?: boolean
+  hasPaidLeaveEntry?: boolean
+  onDeleteOvertime?: (date: string) => void
+  onDeleteBizTrip?: (date: string) => void
+  onDeletePaidLeave?: (date: string) => void
 }
 
-export function DayEditDialog({ entry, open, onClose, onSave }: Props) {
+export function DayEditDialog({
+  entry,
+  open,
+  onClose,
+  onSave,
+  hasOvertimeEntry,
+  hasBizTripEntry,
+  hasPaidLeaveEntry,
+  onDeleteOvertime,
+  onDeleteBizTrip,
+  onDeletePaidLeave,
+}: Props) {
   const [status, setStatus] = useState<DayStatus>('regular')
   const [clockIn, setClockIn] = useState('07:30')
   const [clockOut, setClockOut] = useState('16:30')
@@ -57,12 +74,66 @@ export function DayEditDialog({ entry, open, onClose, onSave }: Props) {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-6 w-[320px] max-w-[90vw]"
+          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-6 w-[320px] max-w-[90vw] max-h-[90vh] overflow-y-auto"
           aria-describedby={undefined}
         >
           <Dialog.Title className="text-lg font-bold text-gray-800 mb-4">
             {dateLabel}
           </Dialog.Title>
+
+          {/* 詳細画面からの登録情報 */}
+          {(hasOvertimeEntry || hasBizTripEntry || hasPaidLeaveEntry) && (
+            <div className="mb-4 space-y-2">
+              {hasOvertimeEntry && (
+                <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                  <span className="text-xs font-medium text-orange-700">⏰ 超過勤務あり</span>
+                  <button
+                    onClick={() => {
+                      if (onDeleteOvertime && confirm('この日の超過勤務記録を削除しますか？')) {
+                        onDeleteOvertime(entry.date)
+                        onClose()
+                      }
+                    }}
+                    className="text-xs text-rose-500 hover:text-rose-700 font-medium"
+                  >
+                    削除
+                  </button>
+                </div>
+              )}
+              {hasBizTripEntry && (
+                <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  <span className="text-xs font-medium text-amber-700">✈️ 出張あり</span>
+                  <button
+                    onClick={() => {
+                      if (onDeleteBizTrip && confirm('この日の出張記録を削除しますか？')) {
+                        onDeleteBizTrip(entry.date)
+                        onClose()
+                      }
+                    }}
+                    className="text-xs text-rose-500 hover:text-rose-700 font-medium"
+                  >
+                    削除
+                  </button>
+                </div>
+              )}
+              {hasPaidLeaveEntry && (
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <span className="text-xs font-medium text-green-700">🌿 有給休暇あり</span>
+                  <button
+                    onClick={() => {
+                      if (onDeletePaidLeave && confirm('この日の有給休暇記録を削除しますか？')) {
+                        onDeletePaidLeave(entry.date)
+                        onClose()
+                      }
+                    }}
+                    className="text-xs text-rose-500 hover:text-rose-700 font-medium"
+                  >
+                    削除
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ステータス選択 */}
           <div className="space-y-2 mb-4">
@@ -82,7 +153,7 @@ export function DayEditDialog({ entry, open, onClose, onSave }: Props) {
             ))}
           </div>
 
-          {/* 時刻入力（出勤・出張のみ） */}
+          {/* 時刻入力 */}
           {needsTimes && (
             <div className="grid grid-cols-2 gap-3 mb-4">
               <label className="block">

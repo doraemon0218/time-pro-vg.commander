@@ -6,16 +6,41 @@ import * as Dialog from '@radix-ui/react-dialog'
 import {
   type OvertimeEntry,
   type BusinessTripEntry,
+  type PaidLeaveEntry,
   type OvertimeReason,
+  type AppSettings,
 } from '@/types'
 import {
   loadOvertimeEntries,
   saveOvertimeEntries,
   loadBusinessTripEntries,
   saveBusinessTripEntries,
+  loadPaidLeaveEntries,
+  savePaidLeaveEntries,
+  loadSchedule,
+  saveSchedule,
+  loadSettings,
 } from '@/lib/storage'
+import { generateDefaultSchedule } from '@/lib/schedule'
 
-type Tab = 'overtime' | 'business-trip'
+const DEFAULT_SETTINGS: AppSettings = {
+  timeproUrl: 'https://rg0010306715vg.creo-hosting.com/TimePro-VG/page/OVg00010L.aspx',
+  username: '',
+  password: '',
+  correctionReason: '打刻漏れのため修正申請いたします',
+  headless: true,
+  weekdayDefaults: [
+    { isWorking: false, clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: false, clockIn: '07:30', clockOut: '16:30' },
+  ],
+}
+
+type Tab = 'overtime' | 'business-trip' | 'paid-leave'
 
 const OVERTIME_REASONS: OvertimeReason[] = ['診療業務の延長', '会議の出席', 'その他']
 
@@ -44,15 +69,17 @@ interface OvertimeDialogProps {
   entry: OvertimeEntry | null
   onClose: () => void
   onSave: (entry: OvertimeEntry) => void
+  checkConflict: (date: string) => string | null
 }
 
-function OvertimeDialog({ open, entry, onClose, onSave }: OvertimeDialogProps) {
+function OvertimeDialog({ open, entry, onClose, onSave, checkConflict }: OvertimeDialogProps) {
   const today = new Date().toISOString().split('T')[0]
   const [date, setDate] = useState(today)
   const [startTime, setStartTime] = useState('17:30')
   const [endTime, setEndTime] = useState('19:00')
   const [reason, setReason] = useState<OvertimeReason>('診療業務の延長')
   const [note, setNote] = useState('')
+  const [conflict, setConflict] = useState<string | null>(null)
 
   useEffect(() => {
     if (entry) {
@@ -69,6 +96,10 @@ function OvertimeDialog({ open, entry, onClose, onSave }: OvertimeDialogProps) {
       setNote('')
     }
   }, [entry, today, open])
+
+  useEffect(() => {
+    setConflict(date ? checkConflict(date) : null)
+  }, [date, checkConflict])
 
   function handleSave() {
     onSave({
@@ -104,6 +135,12 @@ function OvertimeDialog({ open, entry, onClose, onSave }: OvertimeDialogProps) {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </label>
+
+            {conflict && (
+              <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 text-xs text-rose-700 font-medium">
+                ⚠️ {conflict}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
@@ -176,7 +213,7 @@ function OvertimeDialog({ open, entry, onClose, onSave }: OvertimeDialogProps) {
             </button>
             <button
               onClick={handleSave}
-              disabled={!date || !startTime || !endTime}
+              disabled={!date || !startTime || !endTime || !!conflict}
               className="flex-1 px-4 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-bold hover:bg-orange-600 disabled:opacity-50"
             >
               保存
@@ -194,15 +231,17 @@ interface BusinessTripDialogProps {
   entry: BusinessTripEntry | null
   onClose: () => void
   onSave: (entry: BusinessTripEntry) => void
+  checkConflict: (date: string) => string | null
 }
 
-function BusinessTripDialog({ open, entry, onClose, onSave }: BusinessTripDialogProps) {
+function BusinessTripDialog({ open, entry, onClose, onSave, checkConflict }: BusinessTripDialogProps) {
   const today = new Date().toISOString().split('T')[0]
   const [date, setDate] = useState(today)
   const [destination, setDestination] = useState('')
   const [purpose, setPurpose] = useState('')
   const [departTime, setDepartTime] = useState('')
   const [returnTime, setReturnTime] = useState('')
+  const [conflict, setConflict] = useState<string | null>(null)
 
   useEffect(() => {
     if (entry) {
@@ -219,6 +258,10 @@ function BusinessTripDialog({ open, entry, onClose, onSave }: BusinessTripDialog
       setReturnTime('')
     }
   }, [entry, today, open])
+
+  useEffect(() => {
+    setConflict(date ? checkConflict(date) : null)
+  }, [date, checkConflict])
 
   function handleSave() {
     if (!destination) return
@@ -255,6 +298,12 @@ function BusinessTripDialog({ open, entry, onClose, onSave }: BusinessTripDialog
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
               />
             </label>
+
+            {conflict && (
+              <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 text-xs text-rose-700 font-medium">
+                ⚠️ {conflict}
+              </div>
+            )}
 
             <label className="block">
               <span className="text-xs text-gray-500 mb-1 block">行先 <span className="text-rose-400">*</span></span>
@@ -309,7 +358,7 @@ function BusinessTripDialog({ open, entry, onClose, onSave }: BusinessTripDialog
             </button>
             <button
               onClick={handleSave}
-              disabled={!date || !destination}
+              disabled={!date || !destination || !!conflict}
               className="flex-1 px-4 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 disabled:opacity-50"
             >
               保存
@@ -319,6 +368,163 @@ function BusinessTripDialog({ open, entry, onClose, onSave }: BusinessTripDialog
       </Dialog.Portal>
     </Dialog.Root>
   )
+}
+
+// ── 有給ダイアログ ────────────────────────────────────────────────
+interface PaidLeaveDialogProps {
+  open: boolean
+  entry: PaidLeaveEntry | null
+  onClose: () => void
+  onSave: (entry: PaidLeaveEntry) => void
+  checkConflict: (date: string) => string | null
+}
+
+function PaidLeaveDialog({ open, entry, onClose, onSave, checkConflict }: PaidLeaveDialogProps) {
+  const today = new Date().toISOString().split('T')[0]
+  const [date, setDate] = useState(today)
+  const [note, setNote] = useState('')
+  const [conflict, setConflict] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (entry) {
+      setDate(entry.date)
+      setNote(entry.note ?? '')
+    } else {
+      setDate(today)
+      setNote('')
+    }
+  }, [entry, today, open])
+
+  useEffect(() => {
+    setConflict(date ? checkConflict(date) : null)
+  }, [date, checkConflict])
+
+  function handleSave() {
+    onSave({ id: entry?.id ?? genId(), date, note: note || undefined })
+    onClose()
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={v => !v && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
+        <Dialog.Content
+          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-2xl p-6 w-[340px] max-w-[92vw]"
+          aria-describedby={undefined}
+        >
+          <Dialog.Title className="text-lg font-bold text-gray-800 mb-4">
+            {entry ? '有給休暇を編集' : '有給休暇を追加'}
+          </Dialog.Title>
+
+          <div className="space-y-4">
+            <label className="block">
+              <span className="text-xs text-gray-500 mb-1 block">日付</span>
+              <input
+                type="date"
+                value={date}
+                onChange={e => setDate(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </label>
+
+            {conflict && (
+              <div className="bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 text-xs text-rose-700 font-medium">
+                ⚠️ {conflict}
+              </div>
+            )}
+
+            <label className="block">
+              <span className="text-xs text-gray-500 mb-1 block">メモ（任意）</span>
+              <input
+                type="text"
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                placeholder="例: 年次有給"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+              />
+            </label>
+          </div>
+
+          <div className="flex gap-2 mt-5">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2 rounded-xl border border-gray-300 text-gray-600 text-sm hover:bg-gray-50"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={!date || !!conflict}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-green-600 text-white text-sm font-bold hover:bg-green-700 disabled:opacity-50"
+            >
+              保存
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+// ── カレンダー同期ヘルパー ────────────────────────────────────────
+function syncOvertimeToCalendar(
+  year: number,
+  month: number,
+  entries: OvertimeEntry[],
+) {
+  const settings = loadSettings() ?? DEFAULT_SETTINGS
+  const schedule = loadSchedule(year, month) ?? generateDefaultSchedule(year, month, settings)
+  const otDates = new Set(entries.map(e => e.date))
+  const updated = { ...schedule, entries: { ...schedule.entries } }
+  for (const [date, entry] of Object.entries(updated.entries)) {
+    updated.entries[date] = { ...entry, hasOvertime: otDates.has(date) }
+  }
+  saveSchedule(updated)
+}
+
+function syncBizTripToCalendar(
+  year: number,
+  month: number,
+  entries: BusinessTripEntry[],
+) {
+  const settings = loadSettings() ?? DEFAULT_SETTINGS
+  const schedule = loadSchedule(year, month) ?? generateDefaultSchedule(year, month, settings)
+  const bizDates = new Set(entries.map(e => e.date))
+  const updated = { ...schedule, entries: { ...schedule.entries } }
+  for (const [date, entry] of Object.entries(updated.entries)) {
+    if (bizDates.has(date)) {
+      updated.entries[date] = { ...entry, status: 'business-trip' }
+    } else if (entry.status === 'business-trip') {
+      // ステータスを週デフォルトに戻す
+      const d = new Date(date + 'T00:00:00')
+      const weekday = d.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6
+      const def = settings.weekdayDefaults[weekday]
+      updated.entries[date] = { ...entry, status: def.isWorking ? 'regular' : 'non-working' }
+    }
+  }
+  saveSchedule(updated)
+}
+
+function syncPaidLeaveToCalendar(
+  year: number,
+  month: number,
+  entries: PaidLeaveEntry[],
+) {
+  const settings = loadSettings() ?? DEFAULT_SETTINGS
+  const schedule = loadSchedule(year, month) ?? generateDefaultSchedule(year, month, settings)
+  const plDates = new Set(entries.map(e => e.date))
+  const updated = { ...schedule, entries: { ...schedule.entries } }
+  for (const [date, entry] of Object.entries(updated.entries)) {
+    if (plDates.has(date)) {
+      updated.entries[date] = { ...entry, status: 'paid-leave' }
+    } else if (entry.status === 'paid-leave') {
+      const d = new Date(date + 'T00:00:00')
+      const weekday = d.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6
+      const def = settings.weekdayDefaults[weekday]
+      updated.entries[date] = { ...entry, status: def.isWorking ? 'regular' : 'non-working' }
+    }
+  }
+  saveSchedule(updated)
 }
 
 // ── メインページ ──────────────────────────────────────────────────
@@ -331,15 +537,73 @@ export default function DetailsPage() {
   const [overtimeEntries, setOvertimeEntries] = useState<OvertimeEntry[]>([])
   const [editingOvertime, setEditingOvertime] = useState<OvertimeEntry | null>(null)
   const [showOvertimeDialog, setShowOvertimeDialog] = useState(false)
+  const [otApplied, setOtApplied] = useState(false)
 
   const [bizEntries, setBizEntries] = useState<BusinessTripEntry[]>([])
   const [editingBiz, setEditingBiz] = useState<BusinessTripEntry | null>(null)
   const [showBizDialog, setShowBizDialog] = useState(false)
+  const [bizApplied, setBizApplied] = useState(false)
+
+  const [paidLeaveEntries, setPaidLeaveEntries] = useState<PaidLeaveEntry[]>([])
+  const [editingPL, setEditingPL] = useState<PaidLeaveEntry | null>(null)
+  const [showPLDialog, setShowPLDialog] = useState(false)
+  const [plApplied, setPlApplied] = useState(false)
+
+  // カレンダーと同じ月を共有するため、localStorageから初期値を読み込む
+  useEffect(() => {
+    const saved = typeof window !== 'undefined'
+      ? localStorage.getItem('tpvg_current_ym')
+      : null
+    if (saved) {
+      const [y, m] = saved.split('-').map(Number)
+      if (y && m) { setYear(y); setMonth(m) }
+    }
+  }, [])
 
   useEffect(() => {
     setOvertimeEntries(loadOvertimeEntries(year, month))
     setBizEntries(loadBusinessTripEntries(year, month))
+    setPaidLeaveEntries(loadPaidLeaveEntries(year, month))
+    setOtApplied(false)
+    setBizApplied(false)
+    setPlApplied(false)
   }, [year, month])
+
+  // ─── 競合チェック ───
+  const STATUS_JP: Record<string, string> = {
+    'paid-leave': '有給休暇', 'holiday': '祝日', 'non-working': '非勤務日',
+    'post-call-off': '明け休み', 'business-trip': '出張', 'on-call': '当直',
+  }
+
+  function checkOvertimeConflict(date: string): string | null {
+    const sched = loadSchedule(year, month)
+    const status = sched?.entries[date]?.status
+    const blocked = ['paid-leave', 'holiday', 'non-working', 'post-call-off', 'business-trip']
+    if (status && blocked.includes(status)) return `${STATUS_JP[status]}の日には超過勤務は申請できません`
+    if (paidLeaveEntries.some(e => e.date === date)) return '有給休暇が登録されている日には超過勤務は申請できません'
+    if (bizEntries.some(e => e.date === date)) return '出張が登録されている日には超過勤務は申請できません'
+    return null
+  }
+
+  function checkBizConflict(date: string): string | null {
+    const sched = loadSchedule(year, month)
+    const status = sched?.entries[date]?.status
+    const blocked = ['paid-leave', 'holiday', 'non-working', 'post-call-off']
+    if (status && blocked.includes(status)) return `${STATUS_JP[status]}の日には出張は申請できません`
+    if (paidLeaveEntries.some(e => e.date === date)) return '有給休暇が登録されている日には出張は申請できません'
+    if (overtimeEntries.some(e => e.date === date)) return '超過勤務が登録されている日には出張は申請できません'
+    return null
+  }
+
+  function checkPaidLeaveConflict(date: string): string | null {
+    const sched = loadSchedule(year, month)
+    const status = sched?.entries[date]?.status
+    const blocked = ['holiday', 'non-working', 'on-call', 'post-call-off']
+    if (status && blocked.includes(status)) return `${STATUS_JP[status]}の日には有給休暇は申請できません`
+    if (overtimeEntries.some(e => e.date === date)) return '超過勤務が登録されている日には有給休暇は申請できません'
+    if (bizEntries.some(e => e.date === date)) return '出張が登録されている日には有給休暇は申請できません'
+    return null
+  }
 
   // ─── 超過勤務 CRUD ───
   function handleOvertimeSave(entry: OvertimeEntry) {
@@ -349,12 +613,27 @@ export default function DetailsPage() {
     setOvertimeEntries(next)
     saveOvertimeEntries(year, month, next)
     setEditingOvertime(null)
+    setOtApplied(false)
   }
 
   function handleOvertimeDelete(id: string) {
+    const entry = overtimeEntries.find(e => e.id === id)
     const next = overtimeEntries.filter(e => e.id !== id)
     setOvertimeEntries(next)
     saveOvertimeEntries(year, month, next)
+    setOtApplied(false)
+    // カレンダーの hasOvertime フラグを即時更新
+    if (entry) {
+      const stillHas = next.some(e => e.date === entry.date)
+      if (!stillHas) {
+        const settings = loadSettings() ?? DEFAULT_SETTINGS
+        const schedule = loadSchedule(year, month) ?? generateDefaultSchedule(year, month, settings)
+        if (schedule.entries[entry.date]) {
+          schedule.entries[entry.date] = { ...schedule.entries[entry.date], hasOvertime: false }
+          saveSchedule(schedule)
+        }
+      }
+    }
   }
 
   // ─── 出張 CRUD ───
@@ -365,12 +644,85 @@ export default function DetailsPage() {
     setBizEntries(next)
     saveBusinessTripEntries(year, month, next)
     setEditingBiz(null)
+    setBizApplied(false)
   }
 
   function handleBizDelete(id: string) {
+    const entry = bizEntries.find(e => e.id === id)
     const next = bizEntries.filter(e => e.id !== id)
     setBizEntries(next)
     saveBusinessTripEntries(year, month, next)
+    setBizApplied(false)
+    // カレンダーのステータスを戻す
+    if (entry) {
+      const stillHas = next.some(e => e.date === entry.date)
+      if (!stillHas) {
+        const settings = loadSettings() ?? DEFAULT_SETTINGS
+        const schedule = loadSchedule(year, month) ?? generateDefaultSchedule(year, month, settings)
+        if (schedule.entries[entry.date]) {
+          const d = new Date(entry.date + 'T00:00:00')
+          const weekday = d.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6
+          const def = settings.weekdayDefaults[weekday]
+          schedule.entries[entry.date] = {
+            ...schedule.entries[entry.date],
+            status: def.isWorking ? 'regular' : 'non-working',
+          }
+          saveSchedule(schedule)
+        }
+      }
+    }
+  }
+
+  // ─── 有給 CRUD ───
+  function handlePaidLeaveSave(entry: PaidLeaveEntry) {
+    const next = editingPL
+      ? paidLeaveEntries.map(e => (e.id === entry.id ? entry : e))
+      : [...paidLeaveEntries, entry].sort((a, b) => a.date.localeCompare(b.date))
+    setPaidLeaveEntries(next)
+    savePaidLeaveEntries(year, month, next)
+    setEditingPL(null)
+    setPlApplied(false)
+  }
+
+  function handlePaidLeaveDelete(id: string) {
+    const entry = paidLeaveEntries.find(e => e.id === id)
+    const next = paidLeaveEntries.filter(e => e.id !== id)
+    setPaidLeaveEntries(next)
+    savePaidLeaveEntries(year, month, next)
+    setPlApplied(false)
+    if (entry) {
+      const stillHas = next.some(e => e.date === entry.date)
+      if (!stillHas) {
+        const settings = loadSettings() ?? DEFAULT_SETTINGS
+        const schedule = loadSchedule(year, month) ?? generateDefaultSchedule(year, month, settings)
+        if (schedule.entries[entry.date]?.status === 'paid-leave') {
+          const d = new Date(entry.date + 'T00:00:00')
+          const weekday = d.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6
+          const def = settings.weekdayDefaults[weekday]
+          schedule.entries[entry.date] = {
+            ...schedule.entries[entry.date],
+            status: def.isWorking ? 'regular' : 'non-working',
+          }
+          saveSchedule(schedule)
+        }
+      }
+    }
+  }
+
+  // ─── カレンダーに反映 ───
+  function applyOvertimeToCalendar() {
+    syncOvertimeToCalendar(year, month, overtimeEntries)
+    setOtApplied(true)
+  }
+
+  function applyBizTripToCalendar() {
+    syncBizTripToCalendar(year, month, bizEntries)
+    setBizApplied(true)
+  }
+
+  function applyPaidLeaveToCalendar() {
+    syncPaidLeaveToCalendar(year, month, paidLeaveEntries)
+    setPlApplied(true)
   }
 
   // ─── 超過勤務の月合計 ───
@@ -382,12 +734,16 @@ export default function DetailsPage() {
   }, 0)
 
   function prevMonth() {
-    if (month === 1) { setYear(y => y - 1); setMonth(12) }
-    else setMonth(m => m - 1)
+    const newM = month === 1 ? 12 : month - 1
+    const newY = month === 1 ? year - 1 : year
+    setYear(newY); setMonth(newM)
+    localStorage.setItem('tpvg_current_ym', `${newY}-${newM}`)
   }
   function nextMonth() {
-    if (month === 12) { setYear(y => y + 1); setMonth(1) }
-    else setMonth(m => m + 1)
+    const newM = month === 12 ? 1 : month + 1
+    const newY = month === 12 ? year + 1 : year
+    setYear(newY); setMonth(newM)
+    localStorage.setItem('tpvg_current_ym', `${newY}-${newM}`)
   }
 
   return (
@@ -430,7 +786,7 @@ export default function DetailsPage() {
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-5">
           <button
             onClick={() => setTab('overtime')}
-            className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium transition-all ${
+            className={`flex-1 py-2.5 px-2 rounded-lg text-xs font-medium transition-all ${
               tab === 'overtime'
                 ? 'bg-white text-orange-700 shadow-sm'
                 : 'text-gray-500 hover:text-gray-700'
@@ -438,14 +794,14 @@ export default function DetailsPage() {
           >
             ⏰ 超過勤務
             {overtimeEntries.length > 0 && (
-              <span className="ml-1.5 bg-orange-100 text-orange-600 rounded-full px-1.5 py-0.5 text-xs font-bold">
+              <span className="ml-1 bg-orange-100 text-orange-600 rounded-full px-1.5 py-0.5 text-xs font-bold">
                 {overtimeEntries.length}
               </span>
             )}
           </button>
           <button
             onClick={() => setTab('business-trip')}
-            className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-medium transition-all ${
+            className={`flex-1 py-2.5 px-2 rounded-lg text-xs font-medium transition-all ${
               tab === 'business-trip'
                 ? 'bg-white text-amber-700 shadow-sm'
                 : 'text-gray-500 hover:text-gray-700'
@@ -453,8 +809,23 @@ export default function DetailsPage() {
           >
             ✈️ 出張
             {bizEntries.length > 0 && (
-              <span className="ml-1.5 bg-amber-100 text-amber-600 rounded-full px-1.5 py-0.5 text-xs font-bold">
+              <span className="ml-1 bg-amber-100 text-amber-600 rounded-full px-1.5 py-0.5 text-xs font-bold">
                 {bizEntries.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setTab('paid-leave')}
+            className={`flex-1 py-2.5 px-2 rounded-lg text-xs font-medium transition-all ${
+              tab === 'paid-leave'
+                ? 'bg-white text-green-700 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            🌿 有給
+            {paidLeaveEntries.length > 0 && (
+              <span className="ml-1 bg-green-100 text-green-600 rounded-full px-1.5 py-0.5 text-xs font-bold">
+                {paidLeaveEntries.length}
               </span>
             )}
           </button>
@@ -528,7 +899,7 @@ export default function DetailsPage() {
                 </div>
 
                 {/* 月合計 */}
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-3">
                   <div className="text-xs text-orange-500 mb-1">月合計超過時間</div>
                   <div className="text-2xl font-bold text-orange-700">
                     {Math.floor(totalOvertimeMins / 60)}時間
@@ -538,6 +909,18 @@ export default function DetailsPage() {
                     {overtimeEntries.length}件の超過勤務
                   </div>
                 </div>
+
+                {/* カレンダーに反映 */}
+                <button
+                  onClick={applyOvertimeToCalendar}
+                  className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all ${
+                    otApplied
+                      ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                      : 'bg-orange-500 text-white hover:bg-orange-600 active:bg-orange-700 shadow'
+                  }`}
+                >
+                  {otApplied ? '✓ カレンダーに反映済み' : '📅 カレンダーに反映'}
+                </button>
               </>
             )}
           </div>
@@ -559,54 +942,137 @@ export default function DetailsPage() {
                 <div className="text-sm">この月の出張はありません</div>
               </div>
             ) : (
-              <div className="space-y-2">
-                {bizEntries.map(e => (
-                  <div
-                    key={e.id}
-                    className="bg-white rounded-xl border border-amber-100 p-4 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="text-sm font-bold text-gray-700">
-                            {dateLabel(e.date)}
-                          </span>
-                          <span className="text-sm font-semibold text-amber-700">
-                            {e.destination}
-                          </span>
-                        </div>
-                        {e.purpose && (
-                          <div className="text-xs text-gray-500 mb-0.5">{e.purpose}</div>
-                        )}
-                        {(e.departTime || e.returnTime) && (
-                          <div className="text-xs text-gray-400">
-                            {e.departTime && `出発 ${e.departTime}`}
-                            {e.departTime && e.returnTime && ' 〜 '}
-                            {e.returnTime && `帰着 ${e.returnTime}`}
+              <>
+                <div className="space-y-2 mb-4">
+                  {bizEntries.map(e => (
+                    <div
+                      key={e.id}
+                      className="bg-white rounded-xl border border-amber-100 p-4 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="text-sm font-bold text-gray-700">
+                              {dateLabel(e.date)}
+                            </span>
+                            <span className="text-sm font-semibold text-amber-700">
+                              {e.destination}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                      <div className="flex gap-1.5 flex-shrink-0">
-                        <button
-                          onClick={() => {
-                            setEditingBiz(e)
-                            setShowBizDialog(true)
-                          }}
-                          className="px-3 py-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
-                        >
-                          編集
-                        </button>
-                        <button
-                          onClick={() => handleBizDelete(e.id)}
-                          className="px-3 py-1.5 text-xs text-rose-500 border border-rose-200 rounded-lg hover:bg-rose-50"
-                        >
-                          削除
-                        </button>
+                          {e.purpose && (
+                            <div className="text-xs text-gray-500 mb-0.5">{e.purpose}</div>
+                          )}
+                          {(e.departTime || e.returnTime) && (
+                            <div className="text-xs text-gray-400">
+                              {e.departTime && `出発 ${e.departTime}`}
+                              {e.departTime && e.returnTime && ' 〜 '}
+                              {e.returnTime && `帰着 ${e.returnTime}`}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => {
+                              setEditingBiz(e)
+                              setShowBizDialog(true)
+                            }}
+                            className="px-3 py-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
+                          >
+                            編集
+                          </button>
+                          <button
+                            onClick={() => handleBizDelete(e.id)}
+                            className="px-3 py-1.5 text-xs text-rose-500 border border-rose-200 rounded-lg hover:bg-rose-50"
+                          >
+                            削除
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+
+                {/* カレンダーに反映 */}
+                <button
+                  onClick={applyBizTripToCalendar}
+                  className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all ${
+                    bizApplied
+                      ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                      : 'bg-amber-500 text-white hover:bg-amber-600 active:bg-amber-700 shadow'
+                  }`}
+                >
+                  {bizApplied ? '✓ カレンダーに反映済み' : '📅 カレンダーに反映'}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ─── 有給タブ ─── */}
+        {tab === 'paid-leave' && (
+          <div>
+            <button
+              onClick={() => { setEditingPL(null); setShowPLDialog(true) }}
+              className="w-full mb-4 py-3 rounded-xl border-2 border-dashed border-green-300 text-green-600 text-sm font-medium hover:bg-green-50 transition-colors"
+            >
+              + 有給休暇を追加
+            </button>
+
+            {paidLeaveEntries.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <div className="text-4xl mb-3">🌿</div>
+                <div className="text-sm">この月の有給休暇はありません</div>
               </div>
+            ) : (
+              <>
+                <div className="space-y-2 mb-4">
+                  {paidLeaveEntries.map(e => (
+                    <div
+                      key={e.id}
+                      className="bg-white rounded-xl border border-green-100 p-4 shadow-sm"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-bold text-gray-700">{dateLabel(e.date)}</span>
+                          {e.note && (
+                            <span className="ml-2 text-xs text-gray-500">{e.note}</span>
+                          )}
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <button
+                            onClick={() => { setEditingPL(e); setShowPLDialog(true) }}
+                            className="px-3 py-1.5 text-xs text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50"
+                          >
+                            編集
+                          </button>
+                          <button
+                            onClick={() => handlePaidLeaveDelete(e.id)}
+                            className="px-3 py-1.5 text-xs text-rose-500 border border-rose-200 rounded-lg hover:bg-rose-50"
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-3">
+                  <div className="text-xs text-green-500 mb-1">今月の有給取得日数</div>
+                  <div className="text-2xl font-bold text-green-700">{paidLeaveEntries.length}日</div>
+                </div>
+
+                <button
+                  onClick={applyPaidLeaveToCalendar}
+                  className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all ${
+                    plApplied
+                      ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                      : 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800 shadow'
+                  }`}
+                >
+                  {plApplied ? '✓ カレンダーに反映済み' : '📅 カレンダーに反映'}
+                </button>
+              </>
             )}
           </div>
         )}
@@ -617,6 +1083,7 @@ export default function DetailsPage() {
         entry={editingOvertime}
         onClose={() => { setShowOvertimeDialog(false); setEditingOvertime(null) }}
         onSave={handleOvertimeSave}
+        checkConflict={checkOvertimeConflict}
       />
 
       <BusinessTripDialog
@@ -624,6 +1091,15 @@ export default function DetailsPage() {
         entry={editingBiz}
         onClose={() => { setShowBizDialog(false); setEditingBiz(null) }}
         onSave={handleBizSave}
+        checkConflict={checkBizConflict}
+      />
+
+      <PaidLeaveDialog
+        open={showPLDialog}
+        entry={editingPL}
+        onClose={() => { setShowPLDialog(false); setEditingPL(null) }}
+        onSave={handlePaidLeaveSave}
+        checkConflict={checkPaidLeaveConflict}
       />
     </div>
   )
