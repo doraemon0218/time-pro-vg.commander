@@ -25,18 +25,19 @@ import { generateDefaultSchedule } from '@/lib/schedule'
 
 const DEFAULT_SETTINGS: AppSettings = {
   timeproUrl: 'https://rg0010306715vg.creo-hosting.com/TimePro-VG/page/OVg00010L.aspx',
-  username: '',
+  username: '38793',
   password: '',
   correctionReason: '打刻漏れのため修正申請いたします',
+  bizTripReason: '学会出張のため',
   headless: true,
   weekdayDefaults: [
-    { isWorking: false, clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: false, clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: false, clockIn: '07:30', clockOut: '16:30' }, // 日
+    { isWorking: false, clockIn: '07:30', clockOut: '16:30' }, // 月
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' }, // 火
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' }, // 水
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' }, // 木
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' }, // 金
+    { isWorking: false, clockIn: '07:30', clockOut: '16:30' }, // 土
   ],
 }
 

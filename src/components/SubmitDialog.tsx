@@ -59,24 +59,31 @@ function validateEntries(entries: DayEntry[]): ValidationIssue[] {
 interface Props {
   open: boolean
   entries: DayEntry[]
+  bizTripDates: string[]
   overtimeEntries: OvertimeEntry[]
   bizEntries: BusinessTripEntry[]
   paidLeaveEntries: PaidLeaveEntry[]
   submitting: boolean
   results: SubmitResult[] | null
+  bizTripResults: SubmitResult[] | null
   logs: string[]
   onClose: () => void
   onConfirm: () => void
 }
 
 export function SubmitDialog({
-  open, entries, overtimeEntries, bizEntries, paidLeaveEntries,
-  submitting, results, logs, onClose, onConfirm,
+  open, entries, bizTripDates, overtimeEntries, bizEntries, paidLeaveEntries,
+  submitting, results, bizTripResults, logs, onClose, onConfirm,
 }: Props) {
   const isDone = results !== null && !submitting
-  const successCount = results?.filter(r => r.status === 'success').length ?? 0
-  const errorCount   = results?.filter(r => r.status === 'error').length ?? 0
+  const correctionSuccess = results?.filter(r => r.status === 'success').length ?? 0
+  const correctionError   = results?.filter(r => r.status === 'error').length ?? 0
+  const bizTripSuccess    = bizTripResults?.filter(r => r.status === 'success').length ?? 0
+  const bizTripError      = bizTripResults?.filter(r => r.status === 'error').length ?? 0
+  const successCount = correctionSuccess + bizTripSuccess
+  const errorCount   = correctionError + bizTripError
   const isVercelError = isDone && logs.some(l => l.includes('Vercel環境では'))
+  const hasAnyTarget = entries.length > 0 || bizTripDates.length > 0
 
   const issues = validateEntries(entries)
   const hasIssues = issues.length > 0
@@ -225,11 +232,38 @@ export function SubmitDialog({
                   </section>
                 )}
 
-                {/* 出張 */}
+                {/* 出張申請（Time Pro VG へ自動送信） */}
+                {bizTripDates.length > 0 && (
+                  <section>
+                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">
+                      出張申請（自動送信） — {bizTripDates.length}日分
+                    </div>
+                    <div className="border border-amber-200 rounded-xl overflow-hidden">
+                      <table className="w-full text-xs">
+                        <thead className="bg-amber-50">
+                          <tr>
+                            <th className="text-left px-3 py-1.5 text-amber-700 font-medium">日付</th>
+                            <th className="text-left px-2 py-1.5 text-amber-700 font-medium">区分</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-amber-50">
+                          {bizTripDates.map(d => (
+                            <tr key={d} className="hover:bg-amber-50">
+                              <td className="px-3 py-1.5 text-gray-700">{fmtDate(d)}</td>
+                              <td className="px-2 py-1.5 text-amber-700 font-semibold">出張（１日）</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+                )}
+
+                {/* 出張詳細メモ（参照用） */}
                 {bizEntries.length > 0 && (
                   <section>
                     <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1.5">
-                      出張 — {bizEntries.length}件
+                      出張詳細メモ（参照用）
                     </div>
                     <div className="border border-amber-100 rounded-xl overflow-hidden">
                       <table className="w-full text-xs">
@@ -264,7 +298,7 @@ export function SubmitDialog({
                 </button>
                 <button
                   onClick={onConfirm}
-                  disabled={hasIssues || entries.length === 0}
+                  disabled={hasIssues || !hasAnyTarget}
                   className="flex-1 px-4 py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {hasIssues ? '⚠️ 入力エラーを修正してください' : 'はい、申請する'}
@@ -323,20 +357,42 @@ export function SubmitDialog({
                 </div>
               </div>
 
-              <div className="overflow-y-auto flex-1 border border-gray-200 rounded-xl mb-4 text-sm">
-                {results.map(r => (
-                  <div key={r.date} className={`flex items-center gap-3 px-3 py-2 border-b border-gray-100 last:border-0 ${
-                    r.status === 'success' ? 'bg-green-50'
-                    : r.status === 'error' ? 'bg-rose-50'
-                    : ''
-                  }`}>
-                    <span className="text-base">
-                      {r.status === 'success' ? '✅' : r.status === 'error' ? '❌' : '⏭️'}
-                    </span>
-                    <span className="text-gray-700">{r.date}</span>
-                    {r.message && <span className="text-xs text-gray-500 ml-auto truncate max-w-[180px]">{r.message}</span>}
+              <div className="overflow-y-auto flex-1 space-y-3 mb-4">
+                {/* 打刻修正申請 結果 */}
+                {results.length > 0 && (
+                  <div>
+                    <div className="text-xs font-bold text-gray-400 mb-1">打刻修正申請</div>
+                    <div className="border border-gray-200 rounded-xl text-sm">
+                      {results.map(r => (
+                        <div key={r.date} className={`flex items-center gap-3 px-3 py-2 border-b border-gray-100 last:border-0 ${
+                          r.status === 'success' ? 'bg-green-50' : r.status === 'error' ? 'bg-rose-50' : ''
+                        }`}>
+                          <span>{r.status === 'success' ? '✅' : r.status === 'error' ? '❌' : '⏭️'}</span>
+                          <span className="text-gray-700">{r.date}</span>
+                          {r.message && <span className="text-xs text-gray-500 ml-auto truncate max-w-[160px]">{r.message}</span>}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                )}
+
+                {/* 出張申請 結果 */}
+                {bizTripResults && bizTripResults.length > 0 && (
+                  <div>
+                    <div className="text-xs font-bold text-gray-400 mb-1">出張申請</div>
+                    <div className="border border-amber-200 rounded-xl text-sm">
+                      {bizTripResults.map(r => (
+                        <div key={r.date} className={`flex items-center gap-3 px-3 py-2 border-b border-amber-100 last:border-0 ${
+                          r.status === 'success' ? 'bg-green-50' : r.status === 'error' ? 'bg-rose-50' : ''
+                        }`}>
+                          <span>{r.status === 'success' ? '✅' : r.status === 'error' ? '❌' : '⏭️'}</span>
+                          <span className="text-gray-700">{r.date}</span>
+                          {r.message && <span className="text-xs text-gray-500 ml-auto truncate max-w-[160px]">{r.message}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {logs.length > 0 && (

@@ -96,11 +96,20 @@ export function SettingsPanel({ settings, open, onClose, onSave }: Props) {
                 </div>
               </label>
               <label className="block">
-                <span className="text-sm text-gray-600 mb-1 block">申請理由（テンプレート）</span>
+                <span className="text-sm text-gray-600 mb-1 block">打刻修正申請 理由（テンプレート）</span>
                 <input
                   type="text"
                   value={draft.correctionReason}
                   onChange={e => setDraft({ ...draft, correctionReason: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm text-gray-600 mb-1 block">出張申請 理由（テンプレート）</span>
+                <input
+                  type="text"
+                  value={draft.bizTripReason ?? ''}
+                  onChange={e => setDraft({ ...draft, bizTripReason: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
               </label>

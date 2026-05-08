@@ -26,18 +26,19 @@ import { SubmitDialog } from '@/components/SubmitDialog'
 
 const DEFAULT_SETTINGS: AppSettings = {
   timeproUrl: 'https://rg0010306715vg.creo-hosting.com/TimePro-VG/page/OVg00010L.aspx',
-  username: '',
+  username: '38793',
   password: '',
   correctionReason: '打刻漏れのため修正申請いたします',
+  bizTripReason: '学会出張のため',
   headless: true,
   weekdayDefaults: [
-    { isWorking: false, clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' },
-    { isWorking: false, clockIn: '07:30', clockOut: '16:30' },
+    { isWorking: false, clockIn: '07:30', clockOut: '16:30' }, // 日
+    { isWorking: false, clockIn: '07:30', clockOut: '16:30' }, // 月（非勤務）
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' }, // 火
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' }, // 水
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' }, // 木
+    { isWorking: true,  clockIn: '07:30', clockOut: '16:30' }, // 金
+    { isWorking: false, clockIn: '07:30', clockOut: '16:30' }, // 土
   ],
 }
 
@@ -70,6 +71,7 @@ export default function HomePage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [submitResults, setSubmitResults] = useState<SubmitResult[] | null>(null)
+  const [bizTripResults, setBizTripResults] = useState<SubmitResult[] | null>(null)
   const [submitLogs, setSubmitLogs] = useState<string[]>([])
 
   // localhost か否か（Vercel本番では申請実行不可）
@@ -210,33 +212,41 @@ export default function HomePage() {
     return Promise.resolve()
   }
 
-  // ─── 修正申請実行 ───
+  // ─── 修正申請 + 出張申請 実行 ───
   async function handleSubmit() {
     if (!schedule) return
     const entries = getSubmittableEntries(schedule)
-    if (entries.length === 0) return
+    const bizTripDates = Object.values(schedule.entries)
+      .filter(e => e.status === 'business-trip')
+      .map(e => e.date)
+
+    if (entries.length === 0 && bizTripDates.length === 0) return
 
     setSubmitting(true)
     setSubmitResults(null)
+    setBizTripResults(null)
     setSubmitLogs([])
 
     try {
       const res = await fetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entries, settings }),
+        body: JSON.stringify({ entries, bizTripDates, settings }),
       })
       const data = await res.json()
       if (data.isVercelEnvironment) {
         setSubmitLogs([data.error])
         setSubmitResults([])
+        setBizTripResults([])
       } else {
         setSubmitResults(data.results ?? [])
+        setBizTripResults(data.bizTripResults ?? [])
         setSubmitLogs(data.logs ?? [])
       }
     } catch (err) {
       setSubmitLogs([`エラー: ${String(err)}`])
       setSubmitResults([])
+      setBizTripResults([])
     } finally {
       setSubmitting(false)
     }
@@ -389,11 +399,15 @@ export default function HomePage() {
       <SubmitDialog
         open={showSubmit}
         entries={schedule ? getSubmittableEntries(schedule) : []}
+        bizTripDates={schedule
+          ? Object.values(schedule.entries).filter(e => e.status === 'business-trip').map(e => e.date)
+          : []}
         overtimeEntries={overtimeEntries}
         bizEntries={bizEntries}
         paidLeaveEntries={paidLeaveEntries}
         submitting={submitting}
         results={submitResults}
+        bizTripResults={bizTripResults}
         logs={submitLogs}
         onClose={() => { if (!submitting) setShowSubmit(false) }}
         onConfirm={handleSubmit}

@@ -45,6 +45,7 @@ export interface AppSettings {
   username: string
   password: string
   correctionReason: string
+  bizTripReason: string
   headless: boolean
   weekdayDefaults: WeekdayDefaults
 }

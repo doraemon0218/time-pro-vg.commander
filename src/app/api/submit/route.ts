@@ -22,16 +22,20 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { entries, settings }: { entries: DayEntry[]; settings: AppSettings } =
+    const {
+      entries,
+      bizTripDates,
+      settings,
+    }: { entries: DayEntry[]; bizTripDates: string[]; settings: AppSettings } =
       await request.json()
 
-    if (!entries || entries.length === 0) {
+    if ((!entries || entries.length === 0) && (!bizTripDates || bizTripDates.length === 0)) {
       return Response.json({ error: '申請対象がありません' }, { status: 400 })
     }
 
     if (!settings.timeproUrl || !settings.username) {
       return Response.json(
-        { error: 'Time Pro VG の URL・ユーザー名を設定してください' },
+        { error: 'Time Pro VG の URL・職員番号を設定してください' },
         { status: 400 },
       )
     }
@@ -42,14 +46,34 @@ export async function POST(request: NextRequest) {
       console.log(msg)
     }
 
-    const { runAutomation } = await import('@/lib/automation')
-    const results = await runAutomation(entries, settings, log)
+    const { runAutomation, runBizTripAutomation } = await import('@/lib/automation')
+    type R = import('@/types').SubmitResult
 
-    const totalSuccess = results.filter(r => r.status === 'success').length
-    const totalError   = results.filter(r => r.status === 'error').length
-    const totalSkipped = results.filter(r => r.status === 'skipped').length
+    // ── 打刻修正申請 ──
+    let correctionResults: R[] = []
+    if (entries && entries.length > 0) {
+      log('\n=== 打刻修正申請 ===')
+      correctionResults = await runAutomation(entries, settings, log)
+    }
 
-    return Response.json({ results, totalSuccess, totalError, totalSkipped, logs })
+    // ── 出張申請 ──
+    let bizTripResults: R[] = []
+    if (bizTripDates && bizTripDates.length > 0) {
+      log('\n=== 出張申請 ===')
+      bizTripResults = await runBizTripAutomation(bizTripDates, settings, log)
+    }
+
+    const allResults = [...correctionResults, ...bizTripResults]
+    const totalSuccess = allResults.filter(r => r.status === 'success').length
+    const totalError   = allResults.filter(r => r.status === 'error').length
+
+    return Response.json({
+      results: correctionResults,
+      bizTripResults,
+      totalSuccess,
+      totalError,
+      logs,
+    })
   } catch (err) {
     return Response.json({ error: String(err) }, { status: 500 })
   }
